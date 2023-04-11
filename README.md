@@ -4,7 +4,7 @@ EclecticIQ OSQuery Extension, also known as PolyLogyx Windows OSQuery Extension 
 extends the core [osquery](https://osquery.io/) on Windows by adding real time event collection capabilities to osquery on Windows platform. The capabilities are built using the kernel services library of EclecticIQ. 
 The current release of the extension is a 'community-only' release It is a step in the direction aimed at increasing osquery footprint and adoption on Windows platform. With the extension acting as a proxy into Windows kernel
 for osquery, the possibilities can be enormous. The extension supports the 64 bit OS versions from Win7 SP1 onwards, however for Win7, make sure the [KB](https://www.microsoft.com/en-us/download/details.aspx?id=46148) is installed. 
-The version of the current release is 4.0.0.0 (md5: 96e54d304022fb7ea9e62d9096836104)
+The version of the current release is 4.0.1.0 (md5: TBD)
 
 ## What it does:
 The extension bridges the feature gap of osquery on Windows in comparison to MacOS and Linux by adding the following into the osquery:
@@ -40,6 +40,9 @@ The extension bridges the feature gap of osquery on Windows in comparison to Mac
 29) **New in 4.0.0.0**: New column "process_name" in win_image_load_events and win_image_load_process_map tables which denotes the first process detected by extension on loading a particular image.
 30) **New in 4.0.0.0**: New (hidden) column "sha256" in win_process_events table denoting sha256 hash of the process.  
 31) **New in 4.0.0.0**: Extension would start generating events only after event filters are applied in configuration. Previously, extension would generate events as soon as its kernel component (driver) loaded.
+32) **New in 4.0.1.0**: New table "win_scheduled_tasks" with INSERT operation to create/delete scheduled tasks to achieve automated response capability.  
+33) **New in 4.0.1.0**: "win_logger_events" table is updated to publish log file changes one line per event. Also, "watch_file_path" now supports wildcards (\*, ?) in filename.
+34) **New in 4.0.1.0**: New columns "md5" (denoting md5 hash of the process), "orig_file_name" (denoting original file name of the process) added in win_process_events table. Also, column "sha256" is not hidden anymore.  
 
 This additional state of the Windows endpoint is exported by means of following additional tables created by the EclecticIQ Extension
 
@@ -65,6 +68,7 @@ This additional state of the Windows endpoint is exported by means of following 
 - win_registry_events 
 - win_remote_thread_events 
 - win_removable_media_events 
+- win_scheduled_tasks
 - win_suspicious_process_scan
 - win_suspicious_process_dump
 - win_socket_events 
@@ -73,6 +77,52 @@ This additional state of the Windows endpoint is exported by means of following 
 - win_yara
 
 The detailed schema for these [tables](https://github.com/eclecticiq/osq-ext-bin/tree/master/tables-schema). is available 
+
+# Response capability on endpoints by using scheduled tasks (v4.0.1.0 onwards)
+This version of extension adds automated response capability to take action on endpoints through scheduled tasks. The scheduled tasks can be managed 
+(task create or delete) using SQL INSERT operation on "win_scheduled_tasks" table. The table provides similar interface
+as the options provided by schtasks [create](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create) or schtasks [delete](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-delete) command.
+
+Brief description of columns provided:
+- taskname		//name of the task : (mandatory)
+- action		//can be create(CREATE) or delete(DELETE) : (mandatory)
+- scheduletype	//same as /sc in schtasks command
+- taskrun		//same as /tr in schtasks command
+- starttime		//same as /st in schtasks command
+- modifier		//same as /mo in schtasks command
+- status		//if task action is successful, it shows SUCCESS
+- utc_time		//adds the task creation or deletion time in table records for reference 
+
+Sample INSERT query to create task:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+osquery>INSERT INTO win_scheduled_tasks (taskname, action, scheduletype, taskrun, starttime, modifier, status, utc_time) VALUES ("task1", "create", "MINUTE", "cmd.exe /c del c:\temp\malicious.exe", "09:50", "10", "", "");
+
+osquery> select * from win_scheduled_tasks;
++----------+--------+--------------+--------------------------------------+-----------+----------+---------+--------------------------+
+| taskname | action | scheduletype | taskrun                              | starttime | modifier | status  | utc_time                 |
++----------+--------+--------------+--------------------------------------+-----------+----------+---------+--------------------------+
+| task1    | create | MINUTE       | cmd.exe /c del c:\temp\malicious.exe | 09:50     | 10       | SUCCESS | Mon Apr 10 08:20:48 2023 |
++----------+--------+--------------+--------------------------------------+-----------+----------+---------+--------------------------+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Sample INSERT query to delete the created task:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+osquery>INSERT INTO win_scheduled_tasks (taskname, action, scheduletype, taskrun, starttime, modifier, status, utc_time) VALUES ("task1", "delete", "", "", "", "", "", "");
+
+osquery> select * from win_scheduled_tasks;
++----------+--------+--------------+--------------------------------------+-----------+----------+---------+--------------------------+
+| taskname | action | scheduletype | taskrun                              | starttime | modifier | status  | utc_time                 |
++----------+--------+--------------+--------------------------------------+-----------+----------+---------+--------------------------+
+| task1    | delete |              |                                      |           |          | SUCCESS | Mon Apr 10 08:21:57 2023 |
+| task1    | create | MINUTE       | cmd.exe /c del c:\temp\malicious.exe | 09:50     | 10       | SUCCESS | Mon Apr 10 08:20:48 2023 |
++----------+--------+--------------+--------------------------------------+-----------+----------+---------+--------------------------+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Table record will be created only if task create/delete is successful.
+
 
 # Search for files on endpoints by using disk indexing (v4.0.0.0 onwards)
 
@@ -348,7 +398,17 @@ win_logger_events table can be configured in the osquery.conf as follows:
                         "file_regex_pattern" : ["(.*) (\\d+): \\[([^\\]]+)\\] (.*)", "((.|\\r\\n)*)(secret2)(.*)"]
                     }           
                 ]
-            }   
+            },
+			{
+				"logger_name": "IIS",
+				"logger_watch_files": 
+				[
+					{
+						"watch_file_path": "C:\\inetpub\\logs\\LogFiles\\W3SVC\\*",
+						"file_regex_pattern": [	"\\s{2}<Data Name=\"Buffer\">(.*)</Data>" ]
+					}
+				]
+			}				
     ]
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -975,7 +1035,7 @@ osquery>select * from win_process_events where path like '%foo%';
 
 1.  What is extension version?
 
-It is 4.0.0.0. It is digitally signed by EclecticIQ.
+It is 4.0.1.0. It is digitally signed by EclecticIQ.
 
 2.  What osquery version to use?
 
