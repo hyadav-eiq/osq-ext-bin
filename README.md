@@ -84,14 +84,14 @@ This version of extension adds automated response capability to take action on e
 as the options provided by schtasks [create](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create) or schtasks [delete](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-delete) command.
 
 Brief description of columns provided:
-- taskname		//name of the task : (mandatory)
-- action		//can be create(CREATE) or delete(DELETE) : (mandatory)
-- scheduletype	//same as /sc in schtasks command
-- taskrun		//same as /tr in schtasks command
-- starttime		//same as /st in schtasks command
-- modifier		//same as /mo in schtasks command
-- status		//if task action is successful, it shows SUCCESS
-- utc_time		//adds the task creation or deletion time in table records for reference 
+- **taskname**		//name of the task : (mandatory)
+- **action**		//can be create(CREATE) or delete(DELETE) : (mandatory)
+- **scheduletype**	//same as /sc in schtasks command
+- **taskrun**		//same as /tr in schtasks command
+- **starttime**		//same as /st in schtasks command
+- **modifier**		//same as /mo in schtasks command
+- **status**		//if task action is successful, it shows SUCCESS
+- **utc_time**		//adds the task creation or deletion time in table records for reference 
 
 Sample INSERT query to create task:
 
